@@ -78,16 +78,41 @@ app.post("/api/exercise/add", function (req, res) {
 });
 
 app.get("/api/exercise/log", function (req, res) {
-  User.findById(req.query.userId)
+  const limit = parseInt(req.query.limit, 10) || false;
+  const query = { _id: req.query.userId };
+  const from = req.query.from;
+  const to = req.query.to;
+  if (from) {
+    query.log = {
+      $gte: new Date(from),
+    };
+  }
+  if (to) {
+    query.log = {
+      $lt: new Date(to),
+    };
+  }
+
+  console.log(query);
+  User.findOne(query)
+    // User.find(query)
     .select("_id username log.date log.duration log.description")
-    // @TODO add count to the selected fields
     .exec(function (err, user) {
-      res.json({
+      if (err) {
+        return res.json(err);
+      }
+      if (!user) {
+        return res.json("Could not find user with given conditions");
+      }
+      const resp = {
         _id: user._id,
         username: user.username,
-        count: user.log.length,
-        log: user.log,
-      });
+        count: user.log && user.log.length,
+      };
+      if (user.log) {
+        resp.log = user.log.slice(0, limit || user.log.length);
+      }
+      res.json(resp);
     });
 });
 
