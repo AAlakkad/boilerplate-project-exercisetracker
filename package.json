@@ -4,7 +4,7 @@
 	"description": "A REST API project, part of Free Code Camp's curriculum",
 	"main": "server.js",
 	"scripts": {
-		"start": "node server.js"
+		"start": "pm2 start server.js --watch --no-daemon"
 	},
 	"dependencies": {
 		"body-parser": "^1.15.2",
@@ -12,11 +12,15 @@
 		"express": "^4.14.0",
 		"mongodb": "3.5.5",
 		"mongoose": "5.9.6",
+		"prettier": "^2.0.2",
 		"shortid": "^2.2.6"
 	},
 	"license": "MIT",
 	"keywords": [
 		"node",
 		"express"
-	]
+	],
+	"devDependencies": {
+		"pm2": "^4.2.3"
+	}
 }
