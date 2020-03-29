@@ -46,7 +46,14 @@ app.post("/api/exercise/new-user", function (req, res) {
 });
 
 app.get("/api/exercise/users", function (req, res) {
-  res.json([{ array: "of users" }]);
+  const users = User.find()
+    .select("_id username")
+    .exec(function (err, data) {
+      if (err) {
+        return res.json(err);
+      }
+      res.json(data);
+    });
 });
 
 app.post("/api/exercise/add", function (req, res) {
