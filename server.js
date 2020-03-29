@@ -56,7 +56,7 @@ app.get("/api/exercise/users", function (req, res) {
     });
 });
 
-app.post("/api/exercise/add", async function (req, res) {
+app.post("/api/exercise/add", function (req, res) {
   const log = {
     description: req.body.description,
     duration: parseInt(req.body.duration, 10),
@@ -80,9 +80,13 @@ app.post("/api/exercise/add", async function (req, res) {
 app.get("/api/exercise/log", function (req, res) {
   User.findById(req.query.userId)
     .select("_id username log.date log.duration log.description")
-    .exec(function (err, users) {
+    // @TODO add count to the selected fields
+    .exec(function (err, user) {
       res.json({
-        users,
+        _id: user._id,
+        username: user.username,
+        count: user.log.length,
+        log: user.log,
       });
     });
 });
