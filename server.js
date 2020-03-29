@@ -13,11 +13,11 @@ mongoose.connect(process.env.MLAB_URI || "mongodb://localhost/exercise-track", {
 const User = mongoose.model(
   "user",
   new mongoose.Schema({
-    username: String,
+    username: { type: String, required: true },
     log: [
       {
-        description: String,
-        duration: Number,
+        description: { type: String, required: true },
+        duration: { type: Number, required: true },
         date: { type: Date, default: Date.now },
       },
     ],
@@ -56,15 +56,35 @@ app.get("/api/exercise/users", function (req, res) {
     });
 });
 
-app.post("/api/exercise/add", function (req, res) {
-  res.json({ user: "with exercise object" });
+app.post("/api/exercise/add", async function (req, res) {
+  const log = {
+    description: req.body.description,
+    duration: parseInt(req.body.duration, 10),
+    date: req.body.date ? new Date(req.body.date) : undefined,
+  };
+  User.findByIdAndUpdate(
+    req.body.userId,
+    { $push: { log } },
+    { runValidators: true },
+    function (err, user) {
+      if (err) {
+        return res.json(err.message);
+      }
+
+      const { _id, username } = user;
+      res.json({ _id, username, ...log });
+    }
+  );
 });
 
 app.get("/api/exercise/log", function (req, res) {
-  res.json({
-    user:
-      "with all exercise object filtered with count property that specity how many records are there",
-  });
+  User.findById(req.query.userId)
+    .select("_id username log.date log.duration log.description")
+    .exec(function (err, users) {
+      res.json({
+        users,
+      });
+    });
 });
 
 // Not found middleware
