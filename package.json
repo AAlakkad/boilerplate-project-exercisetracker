@@ -4,7 +4,8 @@
 	"description": "A REST API project, part of Free Code Camp's curriculum",
 	"main": "server.js",
 	"scripts": {
-		"start": "pm2 start server.js --watch --no-daemon"
+		"start": "node server.js",
+		"watch": "pm2 start server.js --watch --no-daemon"
 	},
 	"dependencies": {
 		"body-parser": "^1.15.2",
