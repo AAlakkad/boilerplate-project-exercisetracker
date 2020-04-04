@@ -4,10 +4,23 @@ const bodyParser = require("body-parser");
 
 const cors = require("cors");
 
+function formatDate(date) {
+  if (typeof date === "string") {
+    date = new Date(Date.parse(date));
+  }
+  return date
+    .toLocaleDateString("en-US", {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "2-digit"
+    })
+    .replace(/,/g, "");
+}
+
 const mongoose = require("mongoose");
 mongoose.connect(process.env.MLAB_URI || "mongodb://localhost/exercise-track", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
+  useMongoClient: true
 });
 
 const User = mongoose.model(
@@ -18,9 +31,9 @@ const User = mongoose.model(
       {
         description: { type: String, required: true },
         duration: { type: Number, required: true },
-        date: { type: Date, default: Date.now },
-      },
-    ],
+        date: { type: Date, default: Date.now }
+      }
+    ]
   })
 );
 
@@ -34,9 +47,9 @@ app.get("/", (req, res) => {
   res.sendFile(__dirname + "/views/index.html");
 });
 
-app.post("/api/exercise/new-user", function (req, res) {
+app.post("/api/exercise/new-user", function(req, res) {
   const user = new User({ username: req.body.username });
-  user.save(function (err) {
+  user.save(function(err) {
     if (err) {
       return res.json(err);
     }
@@ -45,10 +58,10 @@ app.post("/api/exercise/new-user", function (req, res) {
   });
 });
 
-app.get("/api/exercise/users", function (req, res) {
+app.get("/api/exercise/users", function(req, res) {
   const users = User.find()
     .select("_id username")
-    .exec(function (err, data) {
+    .exec(function(err, data) {
       if (err) {
         return res.json(err);
       }
@@ -56,64 +69,74 @@ app.get("/api/exercise/users", function (req, res) {
     });
 });
 
-app.post("/api/exercise/add", function (req, res) {
+app.post("/api/exercise/add", function(req, res) {
+  const date = req.body.date ? new Date(req.body.date) : new Date();
   const log = {
     description: req.body.description,
     duration: parseInt(req.body.duration, 10),
-    date: req.body.date ? new Date(req.body.date) : undefined,
+    date
   };
-  User.findByIdAndUpdate(
-    req.body.userId,
-    { $push: { log } },
-    { runValidators: true },
-    function (err, user) {
-      if (err) {
-        return res.json(err.message);
-      }
-
-      const { _id, username } = user;
-      res.json({ _id, username, ...log });
+  User.findById(req.body.userId, function(err, user) {
+    if (err || !user) {
+      return res.json({ error: "could not find user by provided id" });
     }
-  );
+
+    User.update(
+      { _id: req.body.userId },
+      { $push: { log } },
+      { runValidators: true },
+      function(err) {
+        if (err) {
+          return res.json(err.message);
+        }
+        const formatedDate = formatDate(date);
+
+        const response = {
+          username: user.username,
+          description: log.description,
+          duration: log.duration,
+          _id: user._id,
+          date: formatedDate
+        };
+
+        res.json(response);
+      }
+    );
+  });
 });
 
-app.get("/api/exercise/log", function (req, res) {
+app.get("/api/exercise/log", function(req, res) {
   const limit = parseInt(req.query.limit, 10) || false;
-  const query = { _id: req.query.userId };
-  const from = req.query.from;
-  const to = req.query.to;
-  if (from) {
-    query.log = {
-      $gte: new Date(from),
-    };
-  }
-  if (to) {
-    query.log = {
-      $lt: new Date(to),
-    };
-  }
+  const from = req.query.from ? new Date(req.query.from) : null;
+  const to = req.query.to ? new Date(req.query.to) : null;
 
-  console.log(query);
-  User.findOne(query)
-    // User.find(query)
-    .select("_id username log.date log.duration log.description")
-    .exec(function (err, user) {
-      if (err) {
-        return res.json(err);
-      }
-      if (!user) {
-        return res.json("Could not find user with given conditions");
-      }
-      const resp = {
-        _id: user._id,
-        username: user.username,
-        count: user.log && user.log.length,
-      };
-      if (user.log) {
-        resp.log = user.log.slice(0, limit || user.log.length);
-      }
-      res.json(resp);
+  User.findById(req.query.userId, function(err, _user) {
+    if (!_user) {
+      return res.json("Could not find user with given conditions");
+    }
+
+    // deep copy _user object
+    const user = JSON.parse(JSON.stringify(_user));
+    if (to) {
+      user.log = user.log.filter(log => Date.parse(log.date) < to.getTime());
+    }
+
+    if (from) {
+      user.log = user.log.filter(log => Date.parse(log.date) > from.getTime());
+    }
+
+    user.log = user.log.map(_log => {
+      return Object.assign(_log, {
+        date: formatDate(_log.date),
+        _id: undefined
+      });
     });
+
+    if (limit) {
+      user.log = user.log.slice(0, limit);
+    }
+    res.json(Object.assign(user, { __v: undefined }));
+  });
 });
 
 // Not found middleware
@@ -136,7 +159,10 @@ app.use((err, req, res, next) => {
     errCode = err.status || 500;
     errMessage = err.message || "Internal Server Error";
   }
-  res.status(errCode).type("txt").send(errMessage);
+  res
+    .status(errCode)
+    .type("txt")
+    .send(errMessage);
 });
 
 const listener = app.listen(process.env.PORT || 3000, () => {
